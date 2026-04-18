@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo">🎓</div>
+      <div><h1>AlumniConnect</h1><div class="muted" style="font-size:12px">Connect • Share • Grow</div></div>
+    </div>
+    <nav>
+      <a href="auth.html" class="btn primary">Login / Register</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <section class="card">
+      <h2>Welcome!</h2>
+      <p>Students can read alumni experiences. Alumni can share journeys and tips. Admin verifies alumni and approves posts.</p>
+      <div class="kv">
+        <span class="badge">Student</span>
+        <span class="badge">Alumni</span>
+        <span class="badge">Admin</span>
+      </div>
+      <hr>
+      <div class="kv">
+        <a class="btn" href="student.html">Student Dashboard</a>
+        <a class="btn" href="alumni.html">Alumni Dashboard</a>
+        <a class="btn" href="admin.html">Admin Dashboard</a>
+      </div>
+    </section>
+  </div>
+  <footer>© <span id="y"></span> AlumniConnect</footer>
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>

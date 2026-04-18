@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auth • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><div class="logo">🎓</div><h1>AlumniConnect</h1></div>
+    <nav><a class="btn ghost" href="index.html">Home</a></nav>
+  </header>
+
+  <div class="container">
+    <div class="card">
+      <h2>Login / Register</h2>
+      <div class="grid cols-2">
+        <label>Email <input id="email" type="email" placeholder="you@example.com"></label>
+        <label>Password <input id="password" type="password" placeholder="••••••••"></label>
+        <label>Role
+          <select id="role">
+            <option value="student">Student</option>
+            <option value="alumni">Alumni</option>
+            <option value="admin">Admin (existing only)</option>
+          </select>
+        </label>
+        <div></div>
+      </div>
+      <div class="kv" style="margin-top:8px">
+        <button class="btn primary" id="btnLogin">Login</button>
+        <button class="btn secondary" id="btnRegister">Register</button>
+      </div>
+      <p class="muted">Note: Admin cannot self-register; set role in Firestore for admin user.</p>
+    </div>
+  </div>
+
+  <script type="module">
+    import {firebaseConfig, firebaseImports} from './js/firebase.js';
+    import {initials} from './js/util.js';
+    const appMod = await import(firebaseImports.app);
+    const authMod = await import(firebaseImports.auth);
+    const fsMod = await import(firebaseImports.firestore);
+    const app = appMod.initializeApp(firebaseConfig);
+    const auth = authMod.getAuth(app);
+    const db = fsMod.getFirestore(app);
+
+    async function ensureUserDoc(user, roleSel){
+      const docRef = fsMod.doc(db, 'users', user.uid);
+      const snap = await fsMod.getDoc(docRef);
+      if(!snap.exists()){
+        const role = roleSel.value;
+        await fsMod.setDoc(docRef, {
+          uid: user.uid,
+          email: user.email,
+          name: user.email.split('@')[0],
+          role: role === 'admin' ? 'student' : role, // prevent self-register as admin
+          verified: role === 'alumni' ? false : true,
+          createdAt: Date.now()
+        }, {merge:true});
+      }
+      return (await fsMod.getDoc(docRef)).data();
+    }
+
+    async function routeByRole(data){
+      if(data.role === 'admin') location.href = 'admin.html';
+      else if(data.role === 'alumni') location.href = 'alumni.html';
+      else location.href = 'student.html';
+    }
+
+    document.getElementById('btnRegister').addEventListener('click', async ()=>{
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      const roleSel = document.getElementById('role');
+      if(!email || !password) return alert('Enter email & password');
+      try{
+        const {user} = await authMod.createUserWithEmailAndPassword(auth, email, password);
+        const data = await ensureUserDoc(user, roleSel);
+        alert('Registered!');
+        await routeByRole(data);
+      }catch(e){ alert(e.message); }
+    });
+
+    document.getElementById('btnLogin').addEventListener('click', async ()=>{
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      if(!email || !password) return alert('Enter email & password');
+      try{
+        const {user} = await authMod.signInWithEmailAndPassword(auth, email, password);
+        const snap = await (await import(firebaseImports.firestore)).getDoc(
+          (await import(firebaseImports.firestore)).doc((await import(firebaseImports.firestore)).getFirestore(app), 'users', user.uid)
+        );
+        const data = snap.data();
+        if(!data){ alert('No user profile found'); return; }
+        await routeByRole(data);
+      }catch(e){ alert(e.message); }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,495 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alumni Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><div class="logo">🎓</div><h1>Alumni Dashboard</h1></div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html">Student</a>
+      <a href="alumni.html" class="active">Alumni</a>
+      <a href="admin.html">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="grid cols-2">
+      <div class="card">
+        <h2>My Profile</h2>
+        <div class="grid cols-2">
+          <label>Name <input id="name"></label>
+          <label>Branch <input id="branch"></label>
+          <label>Grad Year <input id="gradYear" type="number" min="1950" max="2100"></label>
+          <label>Email <input id="email" disabled></label>
+          <label class="cols-2">Bio <textarea id="bio" rows="4"></textarea></label>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <button class="btn primary" id="saveProfile">Save</button>
+          <span id="verifyStatus" class="badge">...</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Share Experience</h2>
+        <p class="muted">Your post will be visible after admin approval.</p>
+        <label>Title <input id="expTitle" placeholder="e.g., My first 6 months as SDE"></label>
+        <div class="grid cols-2">
+          <label>Company <input id="expCompany" placeholder="Company"></label>
+          <label>Tags (comma) <input id="expTags" placeholder="React, Interview"></label>
+        </div>
+        <label>Content <textarea id="expContent" rows="6" placeholder="Write your experience..."></textarea></label>
+        <button class="btn secondary" id="postExp">Post</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>My Posts</h2>
+      <div id="myPosts" class="list"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import {firebaseConfig, firebaseImports} from './js/firebase.js';
+    import {initials} from './js/util.js';
+    const app = (await import(firebaseImports.app)).initializeApp(firebaseConfig);
+    const auth = (await import(firebaseImports.auth)).getAuth(app);
+    const fs = await import(firebaseImports.firestore);
+    const db = fs.getFirestore(app);
+
+    document.getElementById('logout').onclick = () => (await import(firebaseImports.auth)).signOut(auth).then(()=>location.href='auth.html');
+
+    let currentUser = null, userDocData = null;
+
+    (await import(firebaseImports.auth)).onAuthStateChanged(auth, async (u)=>{
+      if(!u){ location.href='auth.html'; return; }
+      currentUser = u;
+      document.getElementById('email').value = u.email||'';
+      // fetch user doc
+      const docRef = fs.doc(db,'users',u.uid);
+      const snap = await fs.getDoc(docRef);
+      if(!snap.exists()){ alert('No profile found'); return; }
+      userDocData = snap.data();
+      if(userDocData.role !== 'alumni'){ alert('Not an alumni account'); location.href='student.html'; return; }
+
+      document.getElementById('name').value = userDocData.name||'';
+      document.getElementById('branch').value = userDocData.branch||'';
+      document.getElementById('gradYear').value = userDocData.gradYear||'';
+      document.getElementById('bio').value = userDocData.bio||'';
+      document.getElementById('verifyStatus').textContent = userDocData.verified ? 'Verified ✅' : 'Pending verification ⏳';
+      loadMyPosts();
+    });
+
+    document.getElementById('saveProfile').onclick = async ()=>{
+      const docRef = fs.doc(db,'users',currentUser.uid);
+      await fs.setDoc(docRef, {
+        name: document.getElementById('name').value,
+        branch: document.getElementById('branch').value,
+        gradYear: parseInt(document.getElementById('gradYear').value)||null,
+        bio: document.getElementById('bio').value
+      }, {merge:true});
+      alert('Profile saved');
+    };
+
+    document.getElementById('postExp').onclick = async ()=>{
+      if(!userDocData?.verified) return alert('Wait until admin verifies your alumni profile.');
+      const title = document.getElementById('expTitle').value.trim();
+      const company = document.getElementById('expCompany').value.trim();
+      const content = document.getElementById('expContent').value.trim();
+      const tags = document.getElementById('expTags').value.trim();
+      if(!title || !content) return alert('Title & content required');
+      await fs.addDoc(fs.collection(db,'experiences'), {
+        title, company, content, tags,
+        authorId: currentUser.uid,
+        authorName: userDocData.name || (currentUser.email||'').split('@')[0],
+        approved: false,
+        createdAt: Date.now()
+      });
+      alert('Submitted for approval');
+      document.getElementById('expTitle').value='';
+      document.getElementById('expCompany').value='';
+      document.getElementById('expContent').value='';
+      document.getElementById('expTags').value='';
+      loadMyPosts();
+    };
+
+    async function loadMyPosts(){
+      const list = document.getElementById('myPosts');
+      list.innerHTML = '';
+      const snap = await fs.getDocs(fs.query(fs.collection(db,'experiences'), fs.where('authorId','==', currentUser.uid), fs.orderBy('createdAt','desc')));
+      snap.forEach(doc=>{
+        const d = doc.data();
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = \`
+          <div class="avatar">\${initials(d.authorName||'A')}</div>
+          <div>
+            <div><strong>\${d.title}</strong></div>
+            <div class="muted">\${d.company||'—'} • \${d.approved?'Approved ✅':'Pending ⏳'}</div>
+            <div style="margin-top:6px">\${(d.content||'').slice(0,140)}...</div>
+          </div>
+          <div>\${d.approved ? '' : '<button class="btn ghost" data-id="'+doc.id+'">Delete</button>'}</div>
+        \`;
+        if(!d.approved){
+          el.querySelector('button').onclick = async ()=>{
+            await fs.deleteDoc(fs.doc(db,'experiences',doc.id));
+            loadMyPosts();
+          }
+        }
+        list.appendChild(el);
+      });
+    }
+  </script>
+</body>
+</html> -->
+
+
+
+<!-- new code from chat gpt  -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Alumni Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script type="module">
+import { protectPage } from './js/auth-guard.js';
+
+(async () => {
+  const { auth, db } = await protectPage('alumni');
+
+  // Ab yaha pe apna existing alumni page ka logic likh sakte ho
+})();
+</script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo">🎓</div>
+      <h1>Alumni Dashboard</h1>
+    </div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html">Student</a>
+      <a href="alumni.html" class="active">Alumni</a>
+      <a href="admin.html">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="grid cols-2">
+      <!-- Profile -->
+      <div class="card">
+        <h2>My Profile</h2>
+        <div class="grid cols-2">
+          <label>Name <input id="name"></label>
+          <label>Branch <input id="branch"></label>
+          <label>Grad Year <input id="gradYear" type="number" min="1950" max="2100"></label>
+          <label>Email <input id="email" disabled></label>
+          <label class="cols-2">Bio <textarea id="bio" rows="4"></textarea></label>
+        </div>
+        <div class="kv" style="margin-top:8px">
+          <button class="btn primary" id="saveProfile">Save</button>
+          <span id="verifyStatus" class="badge">...</span>
+        </div>
+      </div>
+
+      <!-- Share Experience -->
+      <div class="card">
+        <h2>Share Experience</h2>
+        <p class="muted">Your post will be visible after admin approval.</p>
+        <label>Title <input id="expTitle" placeholder="e.g., My first 6 months as SDE"></label>
+        <div class="grid cols-2">
+          <label>Company <input id="expCompany" placeholder="Company"></label>
+          <label>Tags (comma) <input id="expTags" placeholder="React, Interview"></label>
+        </div>
+        <label>Content <textarea id="expContent" rows="6" placeholder="Write your experience..."></textarea></label>
+        <button class="btn secondary" id="postExp">Post</button>
+      </div>
+    </div>
+
+    <!-- Posts -->
+    <div class="card">
+      <h2>My Posts</h2>
+      <div id="myPosts" class="list"></div>
+    </div>
+  </div>
+
+  <!-- <script type="module">
+    import { firebaseConfig, firebaseImports } from './js/firebase.js';
+    import { initials } from './js/util.js';
+
+    async function main(){
+      // Firebase imports
+      const appMod = await import(firebaseImports.app);
+      const authMod = await import(firebaseImports.auth);
+      // const fs = await import(firebaseImports.firestore);
+      const { getFirestore, doc, getDoc, setDoc, addDoc, collection, getDocs, query, where, orderBy, deleteDoc, serverTimestamp } = await import(firebaseImports.firestore);
+
+
+      // Init Firebase
+      const app = appMod.initializeApp(firebaseConfig);
+      const auth = authMod.getAuth(app);
+      const db = fs.getFirestore(app);
+
+      let currentUser = null, userDocData = null;
+
+      // Logout
+      document.getElementById('logout').onclick = async ()=>{
+        await authMod.signOut(auth);
+        location.href = 'auth.html';
+      };
+
+      // Auth state
+      authMod.onAuthStateChanged(auth, async (u)=>{
+        if(!u){ location.href='auth.html'; return; }
+        currentUser = u;
+        document.getElementById('email').value = u.email || '';
+
+        // fetch user doc
+        const docRef = fs.doc(db,'users',u.uid);
+        const snap = await fs.getDoc(docRef);
+        if(!snap.exists()){ alert('No profile found'); return; }
+        userDocData = snap.data();
+
+        if(userDocData.role !== 'alumni'){
+          alert('Not an alumni account');
+          location.href='student.html';
+          return;
+        }
+
+        // fill profile
+        document.getElementById('name').value = userDocData.name||'';
+        document.getElementById('branch').value = userDocData.branch||'';
+        document.getElementById('gradYear').value = userDocData.gradYear||'';
+        document.getElementById('bio').value = userDocData.bio||'';
+        document.getElementById('verifyStatus').textContent = 
+        userDocData.verified ? 'Verified ✅' : 'Pending verification ⏳';
+
+        loadMyPosts();
+      });
+
+      // Save profile
+      document.getElementById('saveProfile').onclick = async ()=>{
+        const docRef = fs.doc(db,'users',currentUser.uid);
+        await fs.setDoc(docRef, {
+          name: document.getElementById('name').value,
+          branch: document.getElementById('branch').value,
+          gradYear: parseInt(document.getElementById('gradYear').value) || null,
+          bio: document.getElementById('bio').value
+        }, {merge:true});
+        alert('Profile saved');
+      };
+
+      // Post experience
+      document.getElementById('postExp').onclick = async ()=>{
+        if(!userDocData?.verified) 
+          return alert('Wait until admin verifies your alumni profile.');
+
+        const title = document.getElementById('expTitle').value.trim();
+        const company = document.getElementById('expCompany').value.trim();
+        const content = document.getElementById('expContent').value.trim();
+        const tags = document.getElementById('expTags').value.trim();
+        if(!title || !content) return alert('Title & content required');
+
+        await addDoc(fs.collection(db,'experiences'), {
+          title, company, content, tags,
+          authorId: currentUser.uid,
+          authorName: userDocData.name || (currentUser.email||'').split('@')[0],
+          approved: false,
+          createdAt: serverTimestamp() 
+        });
+        alert('Submitted for approval');
+
+        // reset form
+        document.getElementById('expTitle').value='';
+        document.getElementById('expCompany').value='';
+        document.getElementById('expContent').value='';
+        document.getElementById('expTags').value='';
+
+        loadMyPosts();
+      };
+
+      // Load user's posts
+      async function loadMyPosts(){
+        const list = document.getElementById('myPosts');
+        list.innerHTML = '';
+        const snap = await getDocs(
+          query(
+            collection(db,'experiences'), 
+            where('authorId','==', currentUser.uid),
+            orderBy('createdAt','desc')
+          )
+        );
+        snap.forEach(doc=>{
+          const d = doc.data();
+          const el = document.createElement('div');
+          el.className='item';
+          el.innerHTML = `
+            <div class="avatar">${initials(d.authorName||'A')}</div>
+            <div>
+              <div><strong>${d.title}</strong></div>
+              <div class="muted">${d.company||'—'} • ${d.approved?'Approved ✅':'Pending ⏳'}</div>
+              <div style="margin-top:6px">${(d.content||'').slice(0,140)}...</div>
+            </div>
+            <div>${d.approved ? '' : '<button class="btn ghost" data-id="'+doc.id+'">Delete</button>'}</div>
+          `;
+          if(!d.approved){
+            el.querySelector('button').onclick = async ()=>{
+              await fs.deleteDoc(fs.doc(db,'experiences',doc.id));
+              loadMyPosts();
+            };
+          }
+          list.appendChild(el);
+        });
+      }
+    }
+
+    main();
+  </script> -->
+
+  <script type="module">
+  import { firebaseConfig, firebaseImports } from './js/firebase.js';
+  import { initials } from './js/util.js';
+
+  async function main(){
+    // Firebase imports
+    const appMod = await import(firebaseImports.app);
+    const authMod = await import(firebaseImports.auth);
+    const {
+      getFirestore, doc, getDoc, setDoc, addDoc, collection,
+      getDocs, query, where, orderBy, deleteDoc, serverTimestamp
+    } = await import(firebaseImports.firestore);
+
+    // Init Firebase
+    const app = appMod.initializeApp(firebaseConfig);
+    const auth = authMod.getAuth(app);
+    const db = getFirestore(app);   // ✅ yaha fs.getFirestore nahi, direct getFirestore use karna
+
+    let currentUser = null, userDocData = null;
+
+    // Logout
+    document.getElementById('logout').onclick = async ()=>{
+      await authMod.signOut(auth);
+      location.href = 'auth.html';
+    };
+
+    // Auth state
+    authMod.onAuthStateChanged(auth, async (u)=>{
+      if(!u){ location.href='auth.html'; return; }
+      currentUser = u;
+      document.getElementById('email').value = u.email || '';
+
+      // fetch user doc
+      const docRef = doc(db,'users',u.uid);   // ✅ fs.doc hata diya
+      const snap = await getDoc(docRef);
+      if(!snap.exists()){ alert('No profile found'); return; }
+      userDocData = snap.data();
+
+      if(userDocData.role !== 'alumni'){
+        alert('Not an alumni account');
+        location.href='student.html';
+        return;
+      }
+
+      // fill profile
+      document.getElementById('name').value = userDocData.name||'';
+      document.getElementById('branch').value = userDocData.branch||'';
+      document.getElementById('gradYear').value = userDocData.gradYear||'';
+      document.getElementById('bio').value = userDocData.bio||'';
+      document.getElementById('verifyStatus').textContent = 
+        userDocData.verified ? 'Verified ✅' : 'Pending verification ⏳';
+
+      loadMyPosts();
+    });
+
+    // Save profile
+    document.getElementById('saveProfile').onclick = async ()=>{
+      const docRef = doc(db,'users',currentUser.uid);
+      await setDoc(docRef, {
+        name: document.getElementById('name').value,
+        branch: document.getElementById('branch').value,
+        gradYear: parseInt(document.getElementById('gradYear').value) || null,
+        bio: document.getElementById('bio').value
+      }, {merge:true});
+      alert('Profile saved');
+    };
+
+    // Post experience
+    document.getElementById('postExp').onclick = async ()=>{
+      if(!userDocData?.verified) 
+        return alert('Wait until admin verifies your alumni profile.');
+
+      const title = document.getElementById('expTitle').value.trim();
+      const company = document.getElementById('expCompany').value.trim();
+      const content = document.getElementById('expContent').value.trim();
+      const tags = document.getElementById('expTags').value.trim();
+      if(!title || !content) return alert('Title & content required');
+
+      await addDoc(collection(db,'experiences'), {   // ✅ fs.collection hata diya
+        title, company, content, tags,
+        authorId: currentUser.uid,
+        authorName: userDocData.name || (currentUser.email||'').split('@')[0],
+        approved: false,
+        createdAt: serverTimestamp()   // ✅ ab timestamp properly save hoga
+      });
+      alert('Submitted for approval');
+
+      // reset form
+      document.getElementById('expTitle').value='';
+      document.getElementById('expCompany').value='';
+      document.getElementById('expContent').value='';
+      document.getElementById('expTags').value='';
+
+      loadMyPosts();
+    };
+
+    // Load user's posts
+    async function loadMyPosts(){
+      const list = document.getElementById('myPosts');
+      list.innerHTML = '';
+      const snap = await getDocs(
+        query(
+          collection(db,'experiences'), 
+          where('authorId','==', currentUser.uid),
+          // orderBy('createdAt','desc')
+        )
+      );
+      snap.forEach(docSnap=>{
+        const d = docSnap.data();
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = `
+          <div class="avatar">${initials(d.authorName||'A')}</div>
+          <div>
+            <div><strong>${d.title}</strong></div>
+            <div class="muted">${d.company||'—'} • ${d.approved?'Approved ✅':'Pending ⏳'}</div>
+            <div style="margin-top:6px">${(d.content||'').slice(0,140)}...</div>
+          </div>
+          <div>${d.approved ? '' : '<button class="btn ghost" data-id="'+docSnap.id+'">Delete</button>'}</div>
+        `;
+        if(!d.approved){
+          el.querySelector('button').onclick = async ()=>{
+            await deleteDoc(doc(db,'experiences',docSnap.id));   // ✅ fs.deleteDoc hata diya
+            loadMyPosts();
+          };
+        }
+        list.appendChild(el);
+      });
+    }
+  }
+
+  main();
+</script>
+
+</body>
+</html>
+

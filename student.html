@@ -1,0 +1,178 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module">
+import { protectPage } from './js/auth-guard.js';
+
+(async () => {
+  const { auth, db } = await protectPage('student');
+
+  // Yaha pe student dashboard logic
+})();
+</script>
+
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><div class="logo">🎓</div><h1>Student Dashboard</h1></div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html" class="active">Student</a>
+      <a href="alumni.html">Alumni</a>
+      <a href="admin.html">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <input id="q" placeholder="Search title/company/author...">
+      <button class="btn" id="searchBtn">Search</button>
+      <span class="muted">Reading approved experiences</span>
+    </div>
+    <div id="list" class="list"></div>
+  </div>
+
+  <script type="module">
+    import {firebaseConfig, firebaseImports} from './js/firebase.js';
+    import {initials, $, $all} from './js/util.js';
+    const app = (await import(firebaseImports.app)).initializeApp(firebaseConfig);
+    const auth = (await import(firebaseImports.auth)).getAuth(app);
+    const {getFirestore, collection, query, where, orderBy, getDocs} = await import(firebaseImports.firestore);
+    const db = getFirestore(app);
+
+    document.getElementById('logout').onclick = () => (import(firebaseImports.auth)).signOut(auth).then(()=>location.href='auth.html');
+
+    async function load(qtext=''){
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      const qcol = collection(db, 'experiences');
+      const snap = await getDocs(query(qcol, where('approved','==', true), orderBy('createdAt','desc')));
+      snap.forEach(doc=>{
+        const d = doc.data();
+        const str = `${d.title} ${d.company||''} ${d.authorName||''}`.toLowerCase();
+        if(qtext && !str.includes(qtext.toLowerCase())) return;
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = `
+          <div class="avatar">${initials(d.authorName||'A')}</div>
+          <div>
+            <div><strong>${d.title}</strong></div>
+            <div class="muted">${d.company||'—'} • by ${d.authorName||'Anonymous'}</div>
+            <div style="margin-top:6px">${(d.content||'').slice(0,180)}...</div>
+          </div>
+          <div><span class="badge">Approved</span></div>`;
+        list.appendChild(el);
+      });
+    }
+    document.getElementById('searchBtn').onclick = ()=> load(document.getElementById('q').value);
+    load();
+  </script>
+</body>
+</html> -->
+
+
+
+<!-- Chat gpt code  -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+
+  <script type="module">
+    import { protectPage } from './js/auth-guard.js';
+    import { firebaseConfig, firebaseImports } from './js/firebase.js';
+    import { initials } from './js/util.js';
+
+    (async () => {
+      // ✅ AuthGuard → only Student can access
+      const { auth, db } = await protectPage('student');
+
+      // Firebase imports
+      const { signOut } = await import(firebaseImports.auth);
+      const { collection, query, where, orderBy, getDocs } = await import(firebaseImports.firestore);
+
+      // ✅ Logout button
+      document.getElementById('logout').onclick = async () => {
+        try {
+          await signOut(auth);
+          location.href = 'auth.html';
+        } catch (err) {
+          console.error("Logout failed:", err);
+        }
+      };
+
+      // ✅ Load Approved Experiences
+      async function load(qtext = '') {
+        const list = document.getElementById('list');
+        list.innerHTML = '';
+
+        try {
+          const qcol = collection(db, 'experiences');
+          const snap = await getDocs(query(qcol, where('approved', '==', true), orderBy('createdAt', 'desc')));
+          console.log("Docs fetched:", snap.size);   // कितने docs आये
+          snap.forEach(doc => console.log(doc.data()));
+
+          snap.forEach(doc => {
+            const d = doc.data();
+            const str = `${d.title} ${d.company || ''} ${d.authorName || ''}`.toLowerCase();
+            if (qtext && !str.includes(qtext.toLowerCase())) return;
+
+            const el = document.createElement('div');
+            el.className = 'item';
+            el.innerHTML = `
+              <div class="avatar">${initials(d.authorName || 'A')}</div>
+              <div>
+                <div><strong>${d.title}</strong></div>
+                <div class="muted">${d.company || '—'} • by ${d.authorName || 'Anonymous'}</div>
+                <div style="margin-top:6px">${(d.content || '').slice(0,180)}...</div>
+              </div>
+              <div><span class="badge">Approved</span></div>`;
+            list.appendChild(el);
+          });
+        } catch (err) {
+          console.error("Error loading experiences:", err);
+        }
+      }
+
+      // ✅ Search button
+      document.getElementById('searchBtn').onclick = () => load(document.getElementById('q').value);
+
+      // ✅ Initial load
+      load();
+    })();
+  </script>
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo">🎓</div>
+      <h1>Student Dashboard</h1>
+    </div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html" class="active">Student</a>
+      <a href="alumni.html">Alumni</a>
+      <a href="admin.html">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="toolbar">
+      <input id="q" placeholder="Search title/company/author...">
+      <button class="btn" id="searchBtn">Search</button>
+      <span class="module">Reading approved experiences</span>
+    </div>
+    <div id="list" class="list"></div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+// Firestore Security Rules (paste in Firebase console > Firestore > Rules)
+// NOTE: Create at least one admin user document manually (role: "admin") in /users/{uid}
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // User documents: /users/{uid}
+    match /users/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid || isAdmin();
+      allow create: if request.auth != null && request.auth.uid == uid;
+      allow update: if request.auth != null && request.auth.uid == uid
+        && !( "role" in request.resource.data )  // prevent self-promoting to admin
+        && !( "verified" in request.resource.data && request.resource.data.verified == true ); // alumni cannot self-verify
+      allow update, delete: if isAdmin();
+    }
+
+    // Experiences: /experiences/{id}
+    // Fields: title, content, company, authorId, authorName, createdAt, approved (bool)
+    match /experiences/{id} {
+      allow read: if resource.data.approved == true || isAdmin();
+      allow create: if request.auth != null
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.approved == false;
+      allow update, delete: if isAdmin()
+        || (request.auth != null && request.resource.data.authorId == request.auth.uid
+            && resource.data.approved == false); // author can edit/delete before approval
+    }
+
+    function isAdmin() {
+      return request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+  }
+}

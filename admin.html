@@ -1,0 +1,344 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="brand"><div class="logo">🎓</div><h1>Admin Dashboard</h1></div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html">Student</a>
+      <a href="alumni.html">Alumni</a>
+      <a href="admin.html" class="active">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="grid cols-3">
+      <div class="card">
+        <h2>Pending Alumni Verification</h2>
+        <div id="pendingAlumni" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Experiences to Approve</h2>
+        <div id="pendingExp" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Users</h2>
+        <div id="usersList" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import {firebaseConfig, firebaseImports} from './js/firebase.js';
+    import {initials} from './js/util.js';
+    const app = (await import(firebaseImports.app)).initializeApp(firebaseConfig);
+    const auth = (await import(firebaseImports.auth)).getAuth(app);
+    const fs = await import(firebaseImports.firestore);
+    const db = fs.getFirestore(app);
+
+    document.getElementById('logout').onclick = () => (await import(firebaseImports.auth)).signOut(auth).then(()=>location.href='auth.html');
+
+    (await import(firebaseImports.auth)).onAuthStateChanged(auth, async (u)=>{
+      if(!u){ location.href='auth.html'; return; }
+      const me = await fs.getDoc(fs.doc(db,'users',u.uid));
+      const my = me.data();
+      if(!my || my.role!=='admin'){ alert('Admin only'); location.href='auth.html'; return; }
+      loadPendingAlumni();
+      loadPendingExp();
+      loadUsers();
+    });
+
+    async function loadPendingAlumni(){
+      const box = document.getElementById('pendingAlumni'); box.innerHTML='';
+      const snap = await fs.getDocs(fs.query(fs.collection(db,'users'), fs.where('role','==','alumni'), fs.where('verified','==', false)));
+      snap.forEach(doc=>{
+        const d = doc.data();
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = \`
+          <div class="avatar">\${initials(d.name||'A')}</div>
+          <div>
+            <div><strong>\${d.name||'—'}</strong></div>
+            <div class="muted">\${d.email}</div>
+            <div class="muted">Branch: \${d.branch||'—'} • Year: \${d.gradYear||'—'}</div>
+          </div>
+          <div>
+            <button class="btn secondary" data-id="\${doc.id}">Verify</button>
+          </div>\`;
+        el.querySelector('button').onclick = async ()=>{
+          await fs.setDoc(fs.doc(db,'users',doc.id), {verified:true}, {merge:true});
+          loadPendingAlumni();
+        };
+        box.appendChild(el);
+      });
+    }
+
+    async function loadPendingExp(){
+      const box = document.getElementById('pendingExp'); box.innerHTML='';
+      const snap = await fs.getDocs(fs.query(fs.collection(db,'experiences'), fs.where('approved','==', false)));
+      snap.forEach(doc=>{
+        const d = doc.data();
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = \`
+          <div class="avatar">✍️</div>
+          <div>
+            <div><strong>\${d.title}</strong></div>
+            <div class="muted">\${d.company||'—'} • by \${d.authorName||'—'}</div>
+            <div style="margin-top:6px">\${(d.content||'').slice(0,120)}...</div>
+          </div>
+          <div class="kv">
+            <button class="btn secondary" data-approve="\${doc.id}">Approve</button>
+            <button class="btn danger" data-reject="\${doc.id}">Reject</button>
+          </div>\`;
+        el.querySelector('[data-approve]').onclick = async ()=>{
+          await fs.setDoc(fs.doc(db,'experiences',doc.id), {approved:true}, {merge:true});
+          loadPendingExp();
+        };
+        el.querySelector('[data-reject]').onclick = async ()=>{
+          await fs.deleteDoc(fs.doc(db,'experiences',doc.id));
+          loadPendingExp();
+        };
+        box.appendChild(el);
+      });
+    }
+
+    async function loadUsers(){
+      const box = document.getElementById('usersList'); box.innerHTML='';
+      const snap = await fs.getDocs(fs.collection(db,'users'));
+      snap.forEach(doc=>{
+        const d = doc.data();
+        const el = document.createElement('div');
+        el.className='item';
+        el.innerHTML = \`
+          <div class="avatar">\${d.role==='admin'?'⭐':(d.role==='alumni'?'👨‍🎓':'🎒')}</div>
+          <div>
+            <div><strong>\${d.name||'—'}</strong> <span class="badge">\${d.role}</span></div>
+            <div class="muted">\${d.email}</div>
+          </div>
+          <div>
+            \${d.role!=='admin' ? '<button class="btn danger" data-del="'+doc.id+'">Delete</button>' : ''}
+          </div>\`;
+        if(d.role!=='admin'){
+          el.querySelector('[data-del]').onclick = async ()=>{
+            if(confirm('Delete user profile doc? (Auth deletion not automated)')){
+              await fs.deleteDoc(fs.doc(db,'users',doc.id));
+              loadUsers();
+            }
+          };
+        }
+        box.appendChild(el);
+      });
+    }
+  </script>
+</body>
+</html> -->
+
+
+
+<!-- New code from chat gpt  -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard • AlumniConnect</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <script type="module">
+import { protectPage } from './js/auth-guard.js';
+
+(async () => {
+  const { auth, db } = await protectPage('admin');
+
+  // Yaha pe admin dashboard logic
+})();
+</script>
+
+</head>
+<body>
+  <header class="header">
+    <div class="brand">
+      <div class="logo">🎓</div>
+      <h1>Admin Dashboard</h1>
+    </div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="student.html">Student</a>
+      <a href="alumni.html">Alumni</a>
+      <a href="admin.html" class="active">Admin</a>
+      <a id="logout" class="btn ghost">Logout</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <div class="grid cols-3">
+      <div class="card">
+        <h2>Pending Alumni Verification</h2>
+        <div id="pendingAlumni" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Experiences to Approve</h2>
+        <div id="pendingExp" class="list"></div>
+      </div>
+
+      <div class="card">
+        <h2>Users</h2>
+        <div id="usersList" class="list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { firebaseConfig, firebaseImports } from './js/firebase.js';
+    import { initials } from './js/util.js';
+
+    async function main() {
+      // Firebase imports
+      const appMod = await import(firebaseImports.app);
+      const authMod = await import(firebaseImports.auth);
+      const fs = await import(firebaseImports.firestore);
+
+      // Init Firebase
+      const app = appMod.initializeApp(firebaseConfig);
+      const auth = authMod.getAuth(app);
+      const db = fs.getFirestore(app);
+
+      // Logout
+      document.getElementById('logout').onclick = async () => {
+        await authMod.signOut(auth);
+        location.href = 'auth.html';
+      };
+
+      // Auth state
+      authMod.onAuthStateChanged(auth, async (u) => {
+        if (!u) {
+          location.href = 'auth.html';
+          return;
+        }
+        const me = await fs.getDoc(fs.doc(db, 'users', u.uid));
+        const my = me.data();
+        if (!my || my.role !== 'admin') {
+          alert('Admin only');
+          location.href = 'auth.html';
+          return;
+        }
+        loadPendingAlumni();
+        loadPendingExp();
+        loadUsers();
+      });
+
+      // Load pending alumni
+      async function loadPendingAlumni() {
+        const box = document.getElementById('pendingAlumni');
+        box.innerHTML = '';
+        const snap = await fs.getDocs(
+          fs.query(
+            fs.collection(db, 'users'),
+            fs.where('role', '==', 'alumni'),
+            fs.where('verified', '==', false)
+          )
+        );
+        snap.forEach((doc) => {
+          const d = doc.data();
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div class="avatar">${initials(d.name || 'A')}</div>
+            <div>
+              <div><strong>${d.name || '—'}</strong></div>
+              <div class="muted">${d.email}</div>
+              <div class="muted">Branch: ${d.branch || '—'} • Year: ${d.gradYear || '—'}</div>
+            </div>
+            <div>
+              <button class="btn secondary" data-id="${doc.id}">Verify</button>
+            </div>`;
+          el.querySelector('button').onclick = async () => {
+            await fs.setDoc(fs.doc(db, 'users', doc.id), { verified: true }, { merge: true });
+            loadPendingAlumni();
+          };
+          box.appendChild(el);
+        });
+      }
+
+      // Load pending experiences
+      async function loadPendingExp() {
+        const box = document.getElementById('pendingExp');
+        box.innerHTML = '';
+        const snap = await fs.getDocs(
+          fs.query(fs.collection(db, 'experiences'), fs.where('approved', '==', false))
+        );
+        snap.forEach((doc) => {
+          const d = doc.data();
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div class="avatar">✍️</div>
+            <div>
+              <div><strong>${d.title}</strong></div>
+              <div class="muted">${d.company || '—'} • by ${d.authorName || '—'}</div>
+              <div style="margin-top:6px">${(d.content || '').slice(0, 120)}...</div>
+            </div>
+            <div class="kv">
+              <button class="btn secondary" data-approve="${doc.id}">Approve</button>
+              <button class="btn danger" data-reject="${doc.id}">Reject</button>
+            </div>`;
+          el.querySelector('[data-approve]').onclick = async () => {
+            await fs.setDoc(fs.doc(db, 'experiences', doc.id), { approved: true }, { merge: true });
+            loadPendingExp();
+          };
+          el.querySelector('[data-reject]').onclick = async () => {
+            await fs.deleteDoc(fs.doc(db, 'experiences', doc.id));
+            loadPendingExp();
+          };
+          box.appendChild(el);
+        });
+      }
+
+      // Load users
+      async function loadUsers() {
+        const box = document.getElementById('usersList');
+        box.innerHTML = '';
+        const snap = await fs.getDocs(fs.collection(db, 'users'));
+        snap.forEach((doc) => {
+          const d = doc.data();
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <div class="avatar">${d.role === 'admin' ? '⭐' : d.role === 'alumni' ? '👨‍🎓' : '🎒'}</div>
+            <div>
+              <div><strong>${d.name || '—'}</strong> <span class="badge">${d.role}</span></div>
+              <div class="muted">${d.email}</div>
+            </div>
+            <div>
+              ${d.role !== 'admin' ? '<button class="btn danger" data-del="' + doc.id + '">Delete</button>' : ''}
+            </div>`;
+          if (d.role !== 'admin') {
+            el.querySelector('[data-del]').onclick = async () => {
+              if (confirm('Delete user profile doc? (Auth deletion not automated)')) {
+                await fs.deleteDoc(fs.doc(db, 'users', doc.id));
+                loadUsers();
+              }
+            };
+          }
+          box.appendChild(el);
+        });
+      }
+    }
+
+    // Run
+    main();
+  </script>
+</body>
+</html>
+
